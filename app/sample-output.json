@@ -1,0 +1,7 @@
+{
+  "draft": "Ramblepost, turn hackathon notes into a clean DEV post by voice.\n\n## What I built\nI enter a lot of hackathons. This month I did about 10 of them: DEV challenges, Devpost, Graph Hacks. After each build I waste hours turning scattered notes into a proper post. I built Ramblepost to fix that. You just talk about what you built and it gives you a clean DEV post or Devpost story draft in plain language. It also tells you which facts you forgot, like the demo link or the repo link.\n\n## Demo\n[demo link]\n\n## How I built it\nI used Wispr Flow and talked to Cursor's agent. No typing. The app is a Next.js project with Tailwind and Groq writes the drafts.\n\n## What was hard\nThe first drafts messed up. They said my app records audio and removes filler words, which I never said. It also used weird dashes, so I told the agent to make the rules way stricter. I spent ages figuring out where the env file goes and I almost went gaming with Caps Lock still set as my Wispr key.\n\n## What I learned\nTalking is way faster than typing for the boring parts. You have to be really strict with AI so it doesn't invent stuff.\n\n## Links\n[repo link]",
+  "missingFacts": [
+    "What is the demo link?",
+    "What is the repo link?"
+  ]
+}

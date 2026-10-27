@@ -1,5 +1,10 @@
+import sampleOutput from "../../sample-output.json";
+import { SAMPLE_FORMAT, isSampleRamble } from "../../sample";
+
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MODEL = "openai/gpt-oss-120b";
+const TRY_AGAIN =
+  "The writing service isn't answering right now. Try again in a minute.";
 const MAX_RAMBLE_CHARS = 8000;
 const MAX_ANSWERS_CHARS = 2000;
 
@@ -47,6 +52,8 @@ Facts (strict):
 - Do not describe features, steps, architecture, inputs or outputs that the notes do not mention. Do not fill gaps with what a project like this would usually do.
 - Only name a tool, library, framework, model or service if the developer named it. Only state a number, date, link or name if the developer gave it.
 - Describing what the project does is the most important part. If the developer says what it does or how a person uses it, say that in the "What I built" or "What it does" section, close to how they said it. Never cut it.
+- If the developer says the project's name, use that exact name in the opening hook (DEV format) or in the first section (Devpost format), and again where it reads naturally. Also keep the problem they say they had (for example time lost or something that annoyed them), and put it first in "What I built" for the DEV format or in "Inspiration" for the Devpost format. Keep any rules or choices they say they set for the project.
+- Keep every number, count and named event, platform or tool the developer mentions (for example "3 weeks", or the name of a hackathon), and every rule they say they set for the project, in their own words.
 - Use everything they said. Every fact the developer mentions (what the project is, what it does, who it is for, tools, numbers, links, problems, results) must appear somewhere in the draft, under the heading where it fits best. Before you answer, check the draft against the notes one fact at a time: nothing the developer said may be left out, and nothing they did not say may be added.
 - Never invent facts, links, numbers, names, dates, tools or results.
 - The input may also include "Answers to the missing facts questions". Those come from the developer too, so treat them as part of the notes. Use them to fill in the placeholders, and only ask again about things that are still missing.
@@ -141,9 +148,24 @@ export async function POST(request: Request) {
     ? `Notes:\n${text}\n\nAnswers to the missing facts questions:\n${extra}`
     : text;
 
+  // If the writing service fails, the sample ramble gets its saved example.
+  // Any other input gets a plain "try again in a minute" message.
+  const useSavedExample =
+    format === SAMPLE_FORMAT && extra === "" && isSampleRamble(text);
+  function fail(message: string, status: number) {
+    if (useSavedExample) {
+      return Response.json({
+        draft: sampleOutput.draft,
+        missingFacts: sampleOutput.missingFacts,
+        saved: true,
+      });
+    }
+    return error(message, status);
+  }
+
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    return error(
+    return fail(
       "The server is missing its GROQ_API_KEY, so it can't write drafts yet.",
       500,
     );
@@ -174,17 +196,14 @@ export async function POST(request: Request) {
       signal: AbortSignal.timeout(45_000),
     });
   } catch {
-    return error("Couldn't reach the writing service. Please try again.", 502);
+    return fail(TRY_AGAIN, 502);
   }
 
   if (res.status === 429) {
-    return error(
-      "The writing service is busy right now. Please try again in a minute.",
-      429,
-    );
+    return fail(TRY_AGAIN, 429);
   }
   if (!res.ok) {
-    return error("The writing service had a problem. Please try again.", 502);
+    return fail(TRY_AGAIN, 502);
   }
 
   try {
@@ -206,6 +225,6 @@ export async function POST(request: Request) {
       missingFacts: missingFacts.map(stripDashes),
     });
   } catch {
-    return error("Got an unreadable answer back. Please try again.", 502);
+    return fail(TRY_AGAIN, 502);
   }
 }

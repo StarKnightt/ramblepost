@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import sampleOutput from "./sample-output.json";
+import { SAMPLE_FORMAT, SAMPLE_RAMBLE, isSampleRamble } from "./sample";
 
 type Format = "dev" | "devpost";
 
@@ -9,7 +11,11 @@ type Result = {
   missingFacts: string[];
   ramble: string;
   format: Format;
+  saved: boolean;
 };
+
+const TRY_AGAIN =
+  "The writing service isn't answering right now. Try again in a minute.";
 
 const FORMATS: { value: Format; label: string }[] = [
   { value: "dev", label: "DEV challenge post" },
@@ -45,6 +51,27 @@ export default function RambleForm() {
   }) {
     setLoading(true);
     setError(null);
+
+    // If the request fails (network, timeout, server error), the sample ramble
+    // still gets its saved example. Any other input gets a "try again" message.
+    function failed(message: string) {
+      if (
+        input.format === SAMPLE_FORMAT &&
+        !input.answers?.trim() &&
+        isSampleRamble(input.ramble)
+      ) {
+        setResult({
+          draft: sampleOutput.draft,
+          missingFacts: sampleOutput.missingFacts,
+          ramble: input.ramble,
+          format: input.format,
+          saved: true,
+        });
+      } else {
+        setError(message);
+      }
+    }
+
     try {
       const res = await fetch("/api/draft", {
         method: "POST",
@@ -53,9 +80,7 @@ export default function RambleForm() {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data || typeof data.draft !== "string") {
-        setError(
-          data?.error ?? "Something went wrong. Please try again in a moment.",
-        );
+        failed(data?.error ?? TRY_AGAIN);
         return;
       }
       setResult({
@@ -63,9 +88,10 @@ export default function RambleForm() {
         missingFacts: Array.isArray(data.missingFacts) ? data.missingFacts : [],
         ramble: input.ramble,
         format: input.format,
+        saved: data.saved === true,
       });
     } catch {
-      setError("Couldn't reach the server. Check your connection and try again.");
+      failed(TRY_AGAIN);
     } finally {
       setLoading(false);
     }
@@ -86,6 +112,12 @@ export default function RambleForm() {
       format: result.format,
       answers,
     });
+  }
+
+  function handleSample() {
+    setRamble(SAMPLE_RAMBLE);
+    setFormat(SAMPLE_FORMAT);
+    setError(null);
   }
 
   async function handleCopy() {
@@ -142,13 +174,21 @@ export default function RambleForm() {
           </div>
         </fieldset>
 
-        <div>
+        <div className="flex flex-wrap items-center gap-3">
           <button
             type="submit"
             disabled={loading || ramble.trim().length === 0}
             className={buttonClass}
           >
             {loading && !result ? "Writing..." : "Generate"}
+          </button>
+          <button
+            type="button"
+            onClick={handleSample}
+            disabled={loading}
+            className={secondaryButtonClass}
+          >
+            Try the sample
           </button>
         </div>
       </form>
@@ -178,6 +218,13 @@ export default function RambleForm() {
 
         {result && (
           <>
+            {result.saved && (
+              <p className="-mt-3 text-xs text-neutral-500">
+                Saved example. The writing service is not answering right now,
+                so this is a saved draft for the sample.
+              </p>
+            )}
+
             <div className={loading ? "opacity-50" : undefined}>
               <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-6 text-neutral-900">
                 {result.draft}
